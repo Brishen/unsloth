@@ -317,16 +317,25 @@ const ReasoningGroupImpl: ReasoningGroupComponent = ({
       return false;
     }
 
-    // Streaming if this group contains a reasoning part. The trailing
-    // walk that demanded only tool-calls after the group flipped this
-    // false as soon as any text part appeared post-reasoning, which
-    // hid the thinking panel during tool-heavy responses.
+    // Streaming if this group contains a reasoning part AND nothing
+    // after the group is plain text. Tool calls between reasoning and
+    // text are allowed (the panel needs to stay visible while the
+    // model interleaves reasoning with tool calls), but as soon as
+    // the model emits answer text the reasoning phase is over and the
+    // spinner / "Thinking" label should resolve to its duration.
+    let groupHasReasoning = false;
     for (let i = startIndex; i <= endIndex && i < len; i += 1) {
       if (parts[i]?.type === "reasoning") {
-        return true;
+        groupHasReasoning = true;
+        break;
       }
     }
-    return false;
+    if (!groupHasReasoning) return false;
+    for (let i = endIndex + 1; i < len; i += 1) {
+      const t = parts[i]?.type;
+      if (t === "text") return false;
+    }
+    return true;
   });
 
   const persistedDuration = useAuiState(({ message }) => {

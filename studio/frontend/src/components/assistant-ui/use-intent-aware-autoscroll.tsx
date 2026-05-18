@@ -324,6 +324,30 @@ export function useIntentAwareAutoScroll(): {
         }
       };
 
+      // Keyboard navigation (PageUp / Home / arrow keys) and scrollbar
+      // drag (pointerdown landing inside the viewport but outside its
+      // content) reach onScroll with delta < 0 but no preceding wheel /
+      // touch event. Without bumping the gesture window for these,
+      // onScroll classifies the upward scroll as layout-induced and
+      // ignores it, leaving the follow loop pinning the user back to
+      // the bottom mid-stream.
+      const onKeyDownGesture = (e: KeyboardEvent) => {
+        if (e.defaultPrevented) return;
+        if (
+          e.key === "PageUp" ||
+          e.key === "PageDown" ||
+          e.key === "Home" ||
+          e.key === "End" ||
+          e.key === "ArrowUp" ||
+          e.key === "ArrowDown"
+        ) {
+          noteGesture();
+        }
+      };
+      const onPointerDownGesture = () => {
+        noteGesture();
+      };
+
       const onScroll = () => {
         const scrollTop = el.scrollTop;
         const clientWidth = el.clientWidth;
@@ -547,6 +571,13 @@ export function useIntentAwareAutoScroll(): {
       el.addEventListener("touchstart", onTouchStart, { passive: true });
       el.addEventListener("touchmove", onTouchMove, { passive: true });
       el.addEventListener("scroll", onScroll, { passive: true });
+      // Window-level: Page/Home/End/Arrow keys bubble up so we catch
+      // them even when focus is in the composer textarea.
+      window.addEventListener("keydown", onKeyDownGesture);
+      // Element-level: pointerdown inside the scroll container most
+      // often lands on the scrollbar track (drag-to-scroll). Listening
+      // on the element keeps it scoped to this viewport.
+      el.addEventListener("pointerdown", onPointerDownGesture, { passive: true });
       // ResizeObserver above covers browser-window resizes (they resize
       // the viewport element). visualViewport.resize is the only signal
       // for iOS software-keyboard changes, where the visual viewport
@@ -564,6 +595,8 @@ export function useIntentAwareAutoScroll(): {
         el.removeEventListener("touchstart", onTouchStart);
         el.removeEventListener("touchmove", onTouchMove);
         el.removeEventListener("scroll", onScroll);
+        window.removeEventListener("keydown", onKeyDownGesture);
+        el.removeEventListener("pointerdown", onPointerDownGesture);
         window.visualViewport?.removeEventListener("resize", onViewportResize);
         scrollImplRef.current = () => {
           /* no viewport mounted */

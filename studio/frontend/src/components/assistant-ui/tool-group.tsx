@@ -3,6 +3,7 @@
 import {
   memo,
   useCallback,
+  useEffect,
   useRef,
   useState,
   type FC,
@@ -232,8 +233,13 @@ const ToolGroupImpl: FC<
   );
 
   const hasEverRunRef = useRef(false);
-  if (hasRunning) hasEverRunRef.current = true;
-  if (!messageStreaming) hasEverRunRef.current = false;
+  // Side effects belong in useEffect, not in render — under concurrent
+  // rendering / React StrictMode the render path can run twice and the
+  // ref would be set to inconsistent values vs. what the effect commits.
+  useEffect(() => {
+    if (hasRunning) hasEverRunRef.current = true;
+    if (!messageStreaming) hasEverRunRef.current = false;
+  }, [hasRunning, messageStreaming]);
 
   // Auto-follow our sticky predicate until the user clicks to override.
   const [userOpen, setUserOpen] = useState<boolean | null>(null);
