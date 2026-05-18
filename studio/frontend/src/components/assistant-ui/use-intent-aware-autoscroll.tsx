@@ -331,20 +331,46 @@ export function useIntentAwareAutoScroll(): {
       // onScroll classifies the upward scroll as layout-induced and
       // ignores it, leaving the follow loop pinning the user back to
       // the bottom mid-stream.
+      //
+      // Scope both handlers so they only fire on real viewport-scroll
+      // intent — keys typed into a composer textarea and clicks on
+      // chat content (links / text selection) must NOT arm the
+      // gesture window, otherwise any layout-induced negative scroll
+      // delta in that 250ms window detaches follow mode incorrectly.
+      const isEditableTarget = (t: EventTarget | null): boolean => {
+        if (!(t instanceof HTMLElement)) return false;
+        const tag = t.tagName;
+        if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
+        if (t.isContentEditable) return true;
+        return false;
+      };
       const onKeyDownGesture = (e: KeyboardEvent) => {
         if (e.defaultPrevented) return;
+        // PageUp/Down inside a single-line textarea or in the composer
+        // moves the caret, not the page; only count keys whose default
+        // browser behaviour scrolls the viewport when focus is OUTSIDE
+        // an editable surface.
+        if (isEditableTarget(e.target)) return;
         if (
           e.key === "PageUp" ||
           e.key === "PageDown" ||
           e.key === "Home" ||
           e.key === "End" ||
           e.key === "ArrowUp" ||
-          e.key === "ArrowDown"
+          e.key === "ArrowDown" ||
+          e.key === " " ||
+          e.key === "Spacebar"
         ) {
           noteGesture();
         }
       };
-      const onPointerDownGesture = () => {
+      const onPointerDownGesture = (e: PointerEvent) => {
+        // pointerdown whose target is the scrollable element itself
+        // is a scrollbar interaction — clicking the track / dragging
+        // the thumb. Pointerdowns on a child element are normal
+        // content clicks (links, buttons, text selection) and must
+        // not arm the gesture window.
+        if (e.target !== el) return;
         noteGesture();
       };
 
